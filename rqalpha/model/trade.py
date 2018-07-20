@@ -25,7 +25,7 @@ class Trade(object):
 
     __repr__ = property_repr
 
-    trade_id_gen = id_gen(int(time.time()))
+    trade_id_gen = id_gen(int(time.time()) * 10000)
 
     def __init__(self):
         self._calendar_dt = None
@@ -43,12 +43,14 @@ class Trade(object):
         self._frozen_price = None
 
     @classmethod
-    def __from_create__(cls, order_id, price, amount, side, position_effect, order_book_id,
-                        commission=0., tax=0., trade_id=None, close_today_amount=0, frozen_price=0):
+    def __from_create__(
+            cls, order_id, price, amount, side, position_effect, order_book_id, commission=0., tax=0.,
+            trade_id=None, close_today_amount=0, frozen_price=0, calendar_dt=None, trading_dt=None
+    ):
         env = Environment.get_instance()
         trade = cls()
-        trade._calendar_dt = env.calendar_dt
-        trade._trading_dt = env.trading_dt
+        trade._calendar_dt = calendar_dt or env.calendar_dt
+        trade._trading_dt = trading_dt or env.trading_dt
         trade._price = price
         trade._amount = amount
         trade._order_id = order_id

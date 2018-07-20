@@ -22,13 +22,13 @@ from rqalpha.events import EVENT, Event
 from rqalpha.model.trade import Trade
 from rqalpha.utils.i18n import gettext as _
 
-from .decider import CommissionDecider, SlippageDecider, TaxDecider
+from rqalpha.mod.rqalpha_mod_sys_simulation.decider import CommissionDecider, SlippageDecider, TaxDecider
 
 
 class Matcher(object):
     def __init__(self, env, mod_config):
-        self._commission_decider = CommissionDecider(mod_config.commission_multiplier)
-        self._slippage_decider = SlippageDecider(mod_config.slippage)
+        self._commission_decider = CommissionDecider(mod_config.commission_multiplier, mod_config.stock_min_commission)
+        self._slippage_decider = SlippageDecider(mod_config.slippage_model, mod_config.slippage)
         self._tax_decider = TaxDecider()
         self._turnover = defaultdict(int)
         self._calendar_dt = None
@@ -147,7 +147,7 @@ class Matcher(object):
                 fill = order.unfilled_quantity
 
             ct_amount = account.positions.get_or_create(order.order_book_id).cal_close_today_amount(fill, order.side)
-            price = self._slippage_decider.get_trade_price(order.side, deal_price)
+            price = self._slippage_decider.get_trade_price(order, deal_price)
             trade = Trade.__from_create__(
                 order_id=order.order_id,
                 price=price,

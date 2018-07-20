@@ -42,17 +42,19 @@ class FutureAccount(BaseAccount):
         "daily_realized_pnl"
     ]
 
+    forced_liquidation = True
+
     def register_event(self):
         event_bus = Environment.get_instance().event_bus
-        event_bus.add_listener(EVENT.SETTLEMENT, self._settlement)
-        event_bus.add_listener(EVENT.ORDER_PENDING_NEW, self._on_order_pending_new)
-        event_bus.add_listener(EVENT.ORDER_CREATION_REJECT, self._on_order_creation_reject)
-        event_bus.add_listener(EVENT.ORDER_CANCELLATION_PASS, self._on_order_unsolicited_update)
-        event_bus.add_listener(EVENT.ORDER_UNSOLICITED_UPDATE, self._on_order_unsolicited_update)
         event_bus.add_listener(EVENT.TRADE, self._on_trade)
+        event_bus.add_listener(EVENT.ORDER_PENDING_NEW, self._on_order_pending_new)
+        event_bus.add_listener(EVENT.ORDER_CREATION_REJECT, self._on_order_unsolicited_update)
+        event_bus.add_listener(EVENT.ORDER_UNSOLICITED_UPDATE, self._on_order_unsolicited_update)
+        event_bus.add_listener(EVENT.ORDER_CANCELLATION_PASS, self._on_order_unsolicited_update)
+        event_bus.add_listener(EVENT.SETTLEMENT, self._settlement)
         if self.AGGRESSIVE_UPDATE_LAST_PRICE:
-            event_bus.add_listener(EVENT.BAR, self._on_bar)
-            event_bus.add_listener(EVENT.TICK, self._on_tick)
+            event_bus.add_listener(EVENT.BAR, self._update_last_price)
+            event_bus.add_listener(EVENT.TICK, self._update_last_price)
 
     def fast_forward(self, orders, trades=list()):
         # 计算 Positions
@@ -70,28 +72,29 @@ class FutureAccount(BaseAccount):
             quantity = quantity - position.buy_quantity + position.sell_quantity
         orders = []
         if quantity > 0:
+            sell_old_quantity, sell_today_quantity = position.sell_old_quantity, position.sell_today_quantity
             # 平昨仓
-            if position.sell_old_quantity > 0:
+            if sell_old_quantity > 0:
                 orders.append(order(
                     order_book_id,
-                    min(quantity, position.sell_old_quantity),
+                    min(quantity, sell_old_quantity),
                     SIDE.BUY,
                     POSITION_EFFECT.CLOSE,
                     style
                 ))
-                quantity -= position.sell_old_quantity
+                quantity -= sell_old_quantity
             if quantity <= 0:
                 return orders
             # 平今仓
-            if position.sell_today_quantity > 0:
+            if sell_today_quantity > 0:
                 orders.append(order(
                     order_book_id,
-                    min(quantity, position.sell_today_quantity),
+                    min(quantity, sell_today_quantity),
                     SIDE.BUY,
                     POSITION_EFFECT.CLOSE_TODAY,
                     style
                 ))
-                quantity -= position.sell_today_quantity
+                quantity -= sell_today_quantity
             if quantity <= 0:
                 return orders
             # 开多仓
@@ -106,37 +109,27 @@ class FutureAccount(BaseAccount):
         else:
             # 平昨仓
             quantity *= -1
-            if position.buy_old_quantity > 0:
-                orders.append(order(
-                    order_book_id,
-                    min(quantity, position.buy_old_quantity),
-                    SIDE.SELL,
-                    POSITION_EFFECT.CLOSE,
-                    style
-                ))
-                quantity -= position.buy_old_quantity
+            buy_old_quantity, buy_today_quantity = position.buy_old_quantity, position.buy_today_quantity
+            if buy_old_quantity > 0:
+                orders.append(
+                    order(order_book_id, min(quantity, buy_old_quantity), SIDE.SELL, POSITION_EFFECT.CLOSE, style))
+                quantity -= min(quantity, buy_old_quantity)
             if quantity <= 0:
                 return orders
             # 平今仓
-            if position.buy_today_quantity > 0:
+            if buy_today_quantity > 0:
                 orders.append(order(
                     order_book_id,
-                    min(quantity, position.buy_today_quantity),
+                    min(quantity, buy_today_quantity),
                     SIDE.SELL,
                     POSITION_EFFECT.CLOSE_TODAY,
                     style
                 ))
-                quantity -= position.buy_today_quantity
+                quantity -= buy_today_quantity
             if quantity <= 0:
                 return orders
             # 开空仓
-            orders.append(order(
-                order_book_id,
-                quantity,
-                SIDE.SELL,
-                POSITION_EFFECT.OPEN,
-                style
-            ))
+            orders.append(order(order_book_id, quantity, SIDE.SELL, POSITION_EFFECT.OPEN, style))
             return orders
 
     def get_state(self):
@@ -165,7 +158,6 @@ class FutureAccount(BaseAccount):
                 margin_changed += position.margin * (v['margin_rate'] - position.margin_rate) / position.margin_rate
 
         self._total_cash = state['total_cash'] + margin_changed
-
 
     @property
     def type(self):
@@ -249,17 +241,15 @@ class FutureAccount(BaseAccount):
         self._total_cash = total_value - self.margin - self.holding_pnl
 
         # 如果 total_value <= 0 则认为已爆仓，清空仓位，资金归0
-        if total_value <= 0:
+        if total_value <= 0 and self.forced_liquidation:
+            if self._positions:
+                user_system_log.warn(_("Trigger Forced Liquidation, current total_value is {}"), total_value)
             self._positions.clear()
             self._total_cash = 0
 
         self._backward_trade_set.clear()
 
-    def _on_bar(self, event):
-        for position in self._positions.values():
-            position.update_last_price()
-
-    def _on_tick(self, event):
+    def _update_last_price(self, event):
         for position in self._positions.values():
             position.update_last_price()
 
@@ -267,11 +257,6 @@ class FutureAccount(BaseAccount):
         if self != event.account:
             return
         self._frozen_cash += self._frozen_cash_of_order(event.order)
-
-    def _on_order_creation_reject(self, event):
-        if self != event.account:
-            return
-        self._frozen_cash -= self._frozen_cash_of_order(event.order)
 
     def _on_order_unsolicited_update(self, event):
         if self != event.account:

@@ -41,7 +41,7 @@ from rqalpha.data.public_fund_commission import PUBLIC_FUND_COMMISSION
 class BaseDataSource(AbstractDataSource):
     def __init__(self, path):
         if not os.path.exists(path):
-            raise RuntimeError('bundle path {} not exist'.format(os.path.abspath))
+            raise RuntimeError('bundle path {} not exist'.format(os.path.abspath(path)))
 
         def _p(name):
             return os.path.join(path, name)
@@ -223,3 +223,14 @@ class BaseDataSource(AbstractDataSource):
 
     def non_redeemable(self, order_book_id, dates):
         return self._non_redeemable_days.contains(order_book_id, dates)
+
+    def get_tick_size(self, instrument):
+        if instrument.type in ['CS', 'INDX']:
+            return 0.01
+        elif instrument.type in ['ETF', 'LOF', 'FenjiB', 'FenjiA', 'FenjiMu']:
+            return 0.001
+        elif instrument.type == 'Future':
+            return CN_FUTURE_INFO[instrument.underlying_symbol]['speculation']['tick_size']
+        else:
+            # NOTE: you can override get_tick_size in your custom data source
+            raise RuntimeError(_("Unsupported instrument type for tick size"))

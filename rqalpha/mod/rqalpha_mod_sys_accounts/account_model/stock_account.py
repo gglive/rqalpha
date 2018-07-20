@@ -29,10 +29,11 @@ from ..api.api_stock import order_shares
 
 
 class StockAccount(BaseAccount):
+    dividend_reinvestment = False
 
     __abandon_properties__ = []
 
-    def __init__(self, total_cash, positions, backward_trade_set=set(), dividend_receivable=None, register_event=True):
+    def __init__(self, total_cash, positions, backward_trade_set=None, dividend_receivable=None, register_event=True):
         super(StockAccount, self).__init__(total_cash, positions, backward_trade_set, register_event)
         self._dividend_receivable = dividend_receivable if dividend_receivable else {}
 
@@ -203,7 +204,7 @@ class StockAccount(BaseAccount):
             position.dividend_(dividend_per_share)
 
             config = Environment.get_instance().config
-            if config.extra.dividend_reinvestment:
+            if StockAccount.dividend_reinvestment:
                 last_price = Environment.get_instance().data_proxy.get_bar(order_book_id, trading_date).close
                 shares = position.quantity * dividend_per_share / last_price
                 position._quantity += shares

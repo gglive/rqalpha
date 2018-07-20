@@ -37,6 +37,8 @@ base:
     future: ~
   # 设置初始仓位
   init_positions: {}
+  # 根据价格最小变动单位调整发单价格
+  round_price: false
 
 
 extra:
@@ -51,8 +53,6 @@ extra:
   force_run_init_when_pt_resume: false
   # enable_profiler: 是否启动性能分析
   enable_profiler: false
-  # 选择是否开启分红再投资
-  dividend_reinvestment: false
   is_hold: false
   locale: zh_Hans_CN
   logger: []

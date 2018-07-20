@@ -216,6 +216,25 @@ class FuturePosition(BasePosition):
         """
         return sum(order.unfilled_quantity for order in self.open_orders if order.side == SIDE.SELL and
                    order.position_effect in [POSITION_EFFECT.CLOSE, POSITION_EFFECT.CLOSE_TODAY])
+    
+    @property
+    def _buy_close_today_order_quantity(self):
+        return sum(order.unfilled_quantity for order in self.open_orders if order.side == SIDE.BUY and
+                   order.position_effect == POSITION_EFFECT.CLOSE_TODAY)
+
+    @property
+    def _sell_close_today_order_quantity(self):
+        return sum(order.unfilled_quantity for order in self.open_orders if order.side == SIDE.SELL and
+                   order.position_effect == POSITION_EFFECT.CLOSE_TODAY)
+
+    @property
+    def _closable_today_sell_quantity(self):
+        return self.sell_today_quantity - self._buy_close_today_order_quantity
+
+    @property
+    def _closable_today_buy_quantity(self):
+        return self.buy_today_quantity - self._sell_close_today_order_quantity
+
 
     @property
     def buy_old_quantity(self):
@@ -409,7 +428,7 @@ class FuturePosition(BasePosition):
         delta = 0
         if trade.side == SIDE.BUY:
             # 先平昨仓
-            if len(self._sell_old_holding_list) != 0:
+            if trade.position_effect == POSITION_EFFECT.CLOSE and len(self._sell_old_holding_list) != 0:
                 old_price, old_quantity = self._sell_old_holding_list.pop()
 
                 if old_quantity > left_quantity:
@@ -419,7 +438,7 @@ class FuturePosition(BasePosition):
                     consumed_quantity = old_quantity
                 left_quantity -= consumed_quantity
                 delta += self._cal_realized_pnl(old_price, trade.last_price, trade.side, consumed_quantity)
-            # 再平进仓
+            # 再平今仓
             while True:
                 if left_quantity <= 0:
                     break
@@ -433,7 +452,7 @@ class FuturePosition(BasePosition):
                 delta += self._cal_realized_pnl(oldest_price, trade.last_price, trade.side, consumed_quantity)
         else:
             # 先平昨仓
-            if len(self._buy_old_holding_list) != 0:
+            if trade.position_effect == POSITION_EFFECT.CLOSE and len(self._buy_old_holding_list) != 0:
                 old_price, old_quantity = self._buy_old_holding_list.pop()
                 if old_quantity > left_quantity:
                     consumed_quantity = left_quantity

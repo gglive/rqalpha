@@ -14,7 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from rqalpha.utils.datetime_func import convert_date_time_ms_int_to_datetime
+
+import numpy as np
 
 
 class Tick(object):
@@ -28,8 +29,7 @@ class Tick(object):
 
     @property
     def datetime(self):
-        dt = convert_date_time_ms_int_to_datetime(self._tick["date"], self._tick["time"])
-        return dt
+        return self._tick['datetime']
 
     @property
     def open(self):
@@ -61,100 +61,60 @@ class Tick(object):
 
     @property
     def open_interest(self):
-        return self._tick['open_interest']
+        try:
+            return self._tick['open_interest']
+        except:
+            return np.nan
 
     @property
     def prev_settlement(self):
-        return self._tick['prev_settlement']
-
-    # FIXME: use dynamic creation
-    @property
-    def b1(self):
-        return self._tick['b1']
+        try:
+            return self._tick['prev_settlement']
+        except:
+            return np.nan
 
     @property
-    def b2(self):
-        return self._tick['b2']
+    def asks(self):
+        try:
+            return self._tick['ask']
+        except (KeyError, ValueError):
+            # FIXME: forward compatbility
+            return []
 
     @property
-    def b3(self):
-        return self._tick['b3']
+    def ask_vols(self):
+        try:
+            return self._tick['ask_vol']
+        except (KeyError, ValueError):
+            return []
 
     @property
-    def b4(self):
-        return self._tick['b4']
+    def bids(self):
+        try:
+            return self._tick["bid"]
+        except (KeyError, ValueError):
+            return []
 
     @property
-    def b5(self):
-        return self._tick['b5']
+    def bid_vols(self):
+        try:
+            return self._tick["bid_vol"]
+        except (KeyError, ValueError):
+            return []
 
-    @property
-    def b1_v(self):
-        return self._tick['b1_v']
-
-    @property
-    def b2_v(self):
-        return self._tick['b2_v']
-
-    @property
-    def b3_v(self):
-        return self._tick['b3_v']
-
-    @property
-    def b4_v(self):
-        return self._tick['b4_v']
-
-    @property
-    def b5_v(self):
-        return self._tick['b5_v']
-
-    @property
-    def a1(self):
-        return self._tick['a1']
-
-    @property
-    def a2(self):
-        return self._tick['a2']
-
-    @property
-    def a3(self):
-        return self._tick['a3']
-
-    @property
-    def a4(self):
-        return self._tick['a4']
-
-    @property
-    def a5(self):
-        return self._tick['a5']
-
-    @property
-    def a1_v(self):
-        return self._tick['a1_v']
-
-    @property
-    def a2_v(self):
-        return self._tick['a2_v']
-
-    @property
-    def a3_v(self):
-        return self._tick['a3_v']
-
-    @property
-    def a4_v(self):
-        return self._tick['a4_v']
-
-    @property
-    def a5_v(self):
-        return self._tick['a5_v']
+    # backward compatible
+    ask = asks
+    bid = bids
+    ask_vol = ask_vols
+    bid_vol = bid_vols
 
     @property
     def limit_up(self):
-        return self._tick['limit_up']
+        return self._tick.get('limit_up', np.nan)
 
     @property
     def limit_down(self):
-        return self._tick['limit_down']
+        return self._tick.get('limit_down', np.nan)
 
     def __repr__(self):
         items = []
