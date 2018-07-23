@@ -23,6 +23,7 @@ from rqalpha.utils.i18n import gettext as _
 from .direct_data_source import DirectDataSource
 from .redis_data_source import RedisDataSource
 from .event_source import RealtimeEventSource
+from .broker import RealtimeBroker
 
 
 class RealtimeTradeMod(AbstractMod):
@@ -40,7 +41,7 @@ class RealtimeTradeMod(AbstractMod):
                 system_log.info(_("RealtimeTradeMod using market from network"))
 
             env.set_event_source(RealtimeEventSource(mod_config.fps, mod_config))
-
+            env.set_broker(RealtimeBroker(env, mod_config))
             # add persist
             persist_provider = DiskPersistProvider(mod_config.persist_path)
             env.set_persist_provider(persist_provider)

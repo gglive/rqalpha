@@ -23,6 +23,7 @@ from rqalpha.const import MATCHING_TYPE, RUN_TYPE
 
 from rqalpha.mod.rqalpha_mod_sys_simulation.simulation_broker import SimulationBroker
 from rqalpha.mod.rqalpha_mod_sys_simulation.signal_broker import SignalBroker
+from rqalpha.mod.rqalpha_mod_sys_simulation.rhino_broker import RealtimeBroker
 from rqalpha.mod.rqalpha_mod_sys_simulation.simulation_event_source import SimulationEventSource
 
 
@@ -59,7 +60,8 @@ class SimulationMod(AbstractMod):
         if mod_config.signal:
             env.set_broker(SignalBroker(env, mod_config))
         else:
-            env.set_broker(SimulationBroker(env, mod_config))
+            # env.set_broker(SimulationBroker(env, mod_config))
+            env.set_broker( RealtimeBroker(env, mod_config))
 
         event_source = SimulationEventSource(env)
         env.set_event_source(event_source)
