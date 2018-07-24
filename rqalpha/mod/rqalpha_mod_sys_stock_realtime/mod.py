@@ -23,7 +23,7 @@ from rqalpha.utils.i18n import gettext as _
 from .direct_data_source import DirectDataSource
 from .redis_data_source import RedisDataSource
 from .event_source import RealtimeEventSource
-
+from .rhino_broker import RealtimeBroker
 
 class RealtimeTradeMod(AbstractMod):
 
@@ -38,7 +38,8 @@ class RealtimeTradeMod(AbstractMod):
             else:
                 env.set_data_source(DirectDataSource(env.config.base.data_bundle_path))
                 system_log.info(_("RealtimeTradeMod using market from network"))
-
+            # BROKER
+            env.set_broker(RealtimeBroker(env, mod_config))
             env.set_event_source(RealtimeEventSource(mod_config.fps, mod_config))
 
             # add persist
