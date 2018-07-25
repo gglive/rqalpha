@@ -187,7 +187,7 @@ class Client:
                             # print ( " == RPC: HEARTBEAT ==")
                             continue
 
-                        print (msgData)
+                        # print (msgData)
                         self.dispatch ( msgData)
                     except Exception as e:
                         print("RPC: handle msg failed, ", e)

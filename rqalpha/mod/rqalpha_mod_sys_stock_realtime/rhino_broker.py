@@ -9,8 +9,10 @@ from rqalpha.model.portfolio import Portfolio
 from rqalpha.model.trade import *
 from rqalpha.utils.i18n import gettext as _
 
-from threading import Thread
 from .rhino_trade_api import RealtimeTradeAPI
+
+from time import sleep
+from threading import Thread
 
 class RealtimeBroker(AbstractBroker):
 
@@ -18,7 +20,7 @@ class RealtimeBroker(AbstractBroker):
         self._env = env
         self._mod_config = mod_config
         self._portfolio = None
-        self._open_orders = []
+        self._open_orders = {}
 
         self._env.event_bus.add_listener(EVENT.PRE_BEFORE_TRADING, self._before_trading)
         self._env.event_bus.add_listener(EVENT.PRE_AFTER_TRADING, self._after_trading)
@@ -29,6 +31,12 @@ class RealtimeBroker(AbstractBroker):
         resultData, returnMsg = self._trade_api.login( "diryox", "8080")
         print ( resultData, returnMsg )
 
+
+        # 后台线程，查询成交
+        _brokerQuery_thread = Thread (target=self._loopBrokerQuery)
+        _brokerQuery_thread.setDaemon(True)
+        _brokerQuery_thread.start()
+
     def get_portfolio (self):
         """
         获取投资组合。系统初始化时，会调用此接口，获取包含账户信息、净值、份额等内容的投资组合
@@ -36,7 +44,8 @@ class RealtimeBroker(AbstractBroker):
         """
         if self._portfolio is not None:
             return self._portfolio
-        self._portfolio = self._init_portfolio()
+        
+        self._portfolio = self._create_portfolio()
 
         if not self._portfolio._accounts:
             raise RuntimeError("accout config error")
@@ -78,10 +87,9 @@ class RealtimeBroker(AbstractBroker):
             self._env.event_bus.publish_event(Event(EVENT.ORDER_CREATION_REJECT, account=account, order=order))
         else:
             # order.secondary_order_id = resultData
-            self._open_orders.append( ( resultData, order) )
+            self._open_orders[resultData] = order
             self._env.event_bus.publish_event(Event(EVENT.ORDER_CREATION_PASS, account=account, order=order))
       
-        self._env.event_bus.publish_event(Event(EVENT.ORDER_CREATION_REJECT, account=account, order=order))
 
     def cancel_order (self, order):
         """
@@ -119,12 +127,12 @@ class RealtimeBroker(AbstractBroker):
         :return: list[:class:`~Order`]
         """
         if order_book_id is None:
-            return [order for __, order in self._open_orders]
+            return [ order for _, order in self._open_orders.items() ]
         else:
-            return [order for __, order in self._open_orders if order.order_book_id == order_book_id]
+            return [ order for _, order in self._open_orders.items() if order.order_book_id == order_book_id ]
 
     def _before_trading(self, event):
-        print("broker before_trading")
+        print("BROKER: before_trading")
 
     def _after_trading(self, event):
         # 收盘时清掉未完成的订单
@@ -136,41 +144,166 @@ class RealtimeBroker(AbstractBroker):
             account = self._env.get_account(order.order_book_id)
             self._env.event_bus.publish_event(Event(EVENT.ORDER_UNSOLICITED_UPDATE, account=account, order=order))
         self._open_orders = []
-        print("broker after_trading")
+        print("BROKER: after_trading")
 
-    def _init_portfolio (self):
+    def _create_portfolio (self):
         config = self._env.config
 
         accounts = {}
         total_cash = 100000 # config.base.stock_starting_cash
         
         StockAccount = self._env.get_account_model(DEFAULT_ACCOUNT_TYPE.STOCK.name)
-        positions = self._get_positions(self._env)
+        positions = self._get_broker_positions()
         accounts[DEFAULT_ACCOUNT_TYPE.STOCK.name] = StockAccount(total_cash, positions)
-
         return Portfolio(self._env.config.base.start_date, 1, total_cash, accounts)
 
-    def _get_account(self, order_book_id):
+    def _get_account (self, order_book_id):
         # account = self._env.get_account(order_book_id)
         # for debug
-        account = self._env.portfolio.accounts[DEFAULT_ACCOUNT_TYPE.STOCK.name]
+        account = self._env.portfolio.accounts [DEFAULT_ACCOUNT_TYPE.STOCK.name]
         return account
 
-    def _get_positions (self, env):
-            StockPosition = env.get_position_model(DEFAULT_ACCOUNT_TYPE.STOCK.name)
-            positions = Positions(StockPosition)
+    def _get_broker_positions (self, ):
+
+        StockPosition = self._env.get_position_model(DEFAULT_ACCOUNT_TYPE.STOCK.name)
+        positions = Positions(StockPosition)
+        resultData, returnMsg = self._trade_api.get_positions ()
+
+        if returnMsg['error'] != 0:
+            return None
+        for poData in resultData:
+            security_id, exchange_id = poData['order_book_id'].split(".")
+            # convert to rqalpha style
+            if exchange_id == "SH": 
+                exchange_id = "XSHG"
+            if exchange_id == "SZ":
+                exchange_id = "XSHE"
+
+            order_book_id = security_id + "." + exchange_id
+
+            poItem = positions.get_or_create( order_book_id)
+            poItem.set_state ({
+                "order_book_id": order_book_id,
+                "quantity": poData["position_qty"],
+                "avg_price": poData["position_avgPx"],
+                "non_closable": 0,
+                "frozen": 0,
+                "transaction_cost":0
+            })
+        return positions
+
+    def _get_broker_orders (self, order_id):
+
+        resultData, returnMsg = self._trade_api.get_orders()
+
+        for orderId, orderData in resultData.items():
+            print (orderId, orderData)
+            
+            order = self._get_order_by_id ( orderId, )
+            
+            if order is None:
+                order = self._create_order_by_data( orderId, orderData)
+
+            account = self._get_account (order.order_book_id)
+
+
+            order_status = orderData["order_status"]
+            if order_status == 'EXECUTING' or order_status == 'FULFILLED':
+
+
+                knock_qty = int(orderData['knock_qty'])
+                knock_avgPx = orderData['knock_avgPx']
+
+                filled_qty = order.quantity - order.unfilled_quantity
+                filled_avgPx = order.avg_price
+                # 无新的成交
+                if filled_qty == knock_qty:  
+                    continue
+
+                # 新的成交 
+                trade = Trade.__from_create__(
+                    order_id = order.order_id,
+                    price = 0.0,
+                    amount = 0,
+                    side = order.side,
+                    position_effect = order.position_effect,
+                    order_book_id = order.order_book_id,
+                    frozen_price = order.frozen_price,
+                    commission = 0.0,
+                    tax = 0.0
+                )
+                trade._amount = knock_qty - filled_qty
+                trade._price = ( (knock_avgPx * knock_qty) - (filled_qty * filled_avgPx) ) / (knock_qty - filled_qty)
+                print ( "New Trade: ", trade.order_book_id, trade.last_price, trade.last_quantity)
+                
+                order.fill( trade)
+                self._env.event_bus.publish_event(Event(EVENT.TRADE, account=account, trade=trade, order=order))
+
+            elif order_status == "CANCELLED":  # 6=已撤单
+                order.mark_cancelled(_(u"{order_id} order has been cancelled by user.").format(order_id=order.order_id))
+                self._env.event_bus.publish_event(Event(EVENT.ORDER_CANCELLATION_PASS, account=account, order=order))
+
+            elif order_status == "INVALID":  # 4=已失效  	7=已删除
+                reason = _(u"Order Cancelled:  code = {0} status = {1} ").format(order.order_book_id, order_status)
+                order.mark_rejected( reason)
+                self._env.event_bus.publish_event(Event(EVENT.ORDER_CREATION_REJECT, account=account, order=order))
+            else:
+                # TODO: ORDER IS PENDING
+                pass
+
+            if order_status != 'EXECUTING': # or 'PENDING'
+                self._delete_open_order ( orderId)
+
+    def _create_order_by_data ( self, order_id, order_data):
+
+        security_id, exchange_id = order_data['order_book_id'].split(".")
+        # convert to rqalpha style
+        if exchange_id == "SH": 
+            exchange_id = "XSHG"
+        if exchange_id == "SZ":
+            exchange_id = "XSHE"
+
+        order_book_id = security_id + "." + exchange_id
+
+        if order_data['order_side'] == "B":
+            order_side = SIDE.BUY
+        if order_data['order_side'] == "S":
+            order_side = SIDE.SELL
+
+        return Order.__from_create__(
+            order_book_id   = order_book_id, 
+            quantity        = order_data['order_qty'], 
+            side            = order_side, 
+            style           = MarketOrder(), 
             # TODO:
-            return positions
+            position_effect = None,
+        )
 
     def _get_order_id (self, order):
-        for order_id, order_impl in self._open_orders:
+        for order_id, order_impl in self._open_orders.items():
             if order_impl is order:
                 return order_id
         return None
-        return order.secondary_order_id
+        # return order.secondary_order_id
 
-    def _get_order_by_id (self, order_id):
-        for _order_id, order_impl in self._open_orders:
-            if order_id == _order_id:
-                return order_impl
-        return None
+    def _get_order_by_id (self, order_id, ):
+
+        # for _order_id, order_impl in self._open_orders.items():
+        #     if order_id == _order_id:
+        #         return order_impl
+        # return None
+        order = self._open_orders.get (order_id)
+
+    def _delete_open_order ( self, order_id):
+        order = self._get_order_by_id( order_id)
+        if order is not None:
+            del self._open_orders[order_id]
+    
+    
+    def _loopBrokerQuery ( self, ):
+        while True:
+            if self._portfolio is None:
+                continue
+            print ("BROKER: QUERY ORDERS")
+            self._get_broker_orders ( None )
+            sleep(1.0)

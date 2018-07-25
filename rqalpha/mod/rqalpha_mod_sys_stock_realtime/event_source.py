@@ -122,7 +122,6 @@ class RealtimeEventSource(AbstractEventSource):
                     dt, event_type = self.event_queue.get(timeout=1)
                     break
                 except Empty:
-                    time.sleep(0.1) # prevent endless loop
                     continue
 
             system_log.debug("real_dt {}, dt {}, event {}", real_dt, dt, event_type)

@@ -28,19 +28,27 @@ class RealtimeTradeAPI:
         if self._username and self._password:
             rpc_params = { "username": self._username, "password": self._password }
             # TODO:
-            returnData, retMsg = self.jsonrpc.call("rqalpha.login", rpc_params)
+            returnData, returnMsg = self.jsonrpc.call("rqalpha.login", rpc_params)
             return ( True, self._username + " has login")
         else:
             return (False, "-1,empty username or password")
 
-    def place_order (self, security_id, order_side,  order_qty, order_px_limit,):
+
+    def get_positions ( self, ):
+        return self.jsonrpc.call ("rqalpha.portfolio", { "tag": self._username})
+    
+    def get_orders (self, ):
+        return self.jsonrpc.call ( "rqalpha.order.status", { "tag": self._username})
+
+
+    def place_order (self, order_book_id, order_side,  order_qty, order_px_limit,):
         """
         return (result, message)
         if result is None, message contains error information
         """
 
         order_payload = { 
-            "security_id": security_id,
+            "order_book_id": order_book_id,
             "order_side": order_side,
             "order_qty" : int(order_qty),
             "order_px_limit": order_px_limit,
@@ -53,7 +61,7 @@ class RealtimeTradeAPI:
                 'algo.append_tick': 99,
                 'algo.cancel_cycle': 60,
                 'offer_start_time': '09:30:00',
-                'offer_stop_time': '15:00:00'
+                'offer_stop_time': '15:00:00' # TODO: 
             }),
         }
 
@@ -65,3 +73,4 @@ class RealtimeTradeAPI:
         if result is None, message contains error information
         """
         return self.jsonrpc.call("rqalpha.order.cancel", { "order_id": order_id } )
+
