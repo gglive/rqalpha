@@ -39,6 +39,14 @@ cli.commands['run'].params.append(
     )
 )
 
+def conver2windcode(t):
+	if t.endswith('.XSHG'):
+		return t.replace('.XSHG','.SH')
+	elif t.endswith('.XSHE'):
+		return t.replace('.XSHE','.SZ')
+	else:
+		return t
+
 
 @cli.command()
 @click.argument('redis_url', required=True)
@@ -74,7 +82,8 @@ def quotation_server(redis_url):
 
     def record_market_data(total_df):
         for order_book_id, item in total_df.iterrows():
-            redis_client[order_book_id] = json.dumps(item.to_dict())
+        	item['order_book_id'] = conver2windcode(item['order_book_id'])
+            redis_client[conver2windcode(order_book_id)] = json.dumps(item.to_dict())
 
     retry_cnt = 0
     while True:
