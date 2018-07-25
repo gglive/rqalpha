@@ -29,8 +29,10 @@ def is_holiday_today():
 
 
 def is_tradetime_now():
-    now_time = time.localtime()
-    now = (now_time.tm_hour, now_time.tm_min, now_time.tm_sec)
+    #now_time = time.localtime()
+    #now = (now_time.tm_hour, now_time.tm_min, now_time.tm_sec)
+    now_time = datetime.datetime.now()
+    now = (now_time.hour, now_time.minute, now_time.second)
     if (9, 15, 0) <= now <= (11, 30, 0) or (13, 0, 0) <= now <= (15, 0, 0):
         return True
     return False
