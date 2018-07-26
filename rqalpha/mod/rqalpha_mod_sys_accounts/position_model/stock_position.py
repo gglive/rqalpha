@@ -74,8 +74,6 @@ class StockPosition(BasePosition):
             self._quantity -= trade.last_quantity
             self._frozen -= trade.last_quantity
         
-        print ("apply.trade: ", self.order_book_id, self._quantity)
-
     def apply_settlement(self):
         self._non_closable = 0
 
