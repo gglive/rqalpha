@@ -13,6 +13,7 @@ from .rhino_trade_api import RealtimeTradeAPI
 
 from time import sleep
 from threading import Thread
+import datetime
 
 class RealtimeBroker(AbstractBroker):
 
@@ -143,7 +144,7 @@ class RealtimeBroker(AbstractBroker):
             ))
             account = self._env.get_account(order.order_book_id)
             self._env.event_bus.publish_event(Event(EVENT.ORDER_UNSOLICITED_UPDATE, account=account, order=order))
-        self._open_orders = []
+        self._open_orders = {}
         print("BROKER: after_trading")
 
     def _create_portfolio (self):
@@ -192,32 +193,34 @@ class RealtimeBroker(AbstractBroker):
             })
         return positions
 
-    def _get_broker_orders (self, order_id):
+    def _get_broker_orders (self, specifiedOrderId):
 
         resultData, returnMsg = self._trade_api.get_orders()
 
         for orderId, orderData in resultData.items():
-            print (orderId, orderData)
-            
+
             order = self._get_order_by_id ( orderId, )
-            
             if order is None:
+                print ("New Order: ",  orderId)
                 order = self._create_order_by_data( orderId, orderData)
-
+                order.set_secondary_order_id(orderId)
+                self._open_orders[orderId] = order
+            
             account = self._get_account (order.order_book_id)
-
 
             order_status = orderData["order_status"]
             if order_status == 'EXECUTING' or order_status == 'FULFILLED':
 
-
                 knock_qty = int(orderData['knock_qty'])
                 knock_avgPx = orderData['knock_avgPx']
 
-                filled_qty = order.quantity - order.unfilled_quantity
+                if orderId == "000007":
+                    print (orderData)
+
+                filled_qty = order.filled_quantity # order.quantity - order.unfilled_quantity
                 filled_avgPx = order.avg_price
                 # 无新的成交
-                if filled_qty == knock_qty:  
+                if filled_qty == knock_qty:
                     continue
 
                 # 新的成交 
@@ -251,8 +254,8 @@ class RealtimeBroker(AbstractBroker):
                 # TODO: ORDER IS PENDING
                 pass
 
-            if order_status != 'EXECUTING': # or 'PENDING'
-                self._delete_open_order ( orderId)
+            # if order_status != 'EXECUTING': # or 'PENDING'
+            #     self._delete_open_order ( orderId)
 
     def _create_order_by_data ( self, order_id, order_data):
 
@@ -292,7 +295,8 @@ class RealtimeBroker(AbstractBroker):
         #     if order_id == _order_id:
         #         return order_impl
         # return None
-        order = self._open_orders.get (order_id)
+        order_impl = self._open_orders.get (order_id)
+        return order_impl
 
     def _delete_open_order ( self, order_id):
         order = self._get_order_by_id( order_id)
@@ -304,6 +308,6 @@ class RealtimeBroker(AbstractBroker):
         while True:
             if self._portfolio is None:
                 continue
-            print ("BROKER: QUERY ORDERS")
-            self._get_broker_orders ( None )
             sleep(1.0)
+            print ("BROKER: Sync Orders")
+            self._get_broker_orders ( None )

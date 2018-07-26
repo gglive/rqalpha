@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
+import datetime
+import time
 import json
 from .jsonrpc.client import Client
+
 
 class RealtimeTradeAPI:
 
@@ -47,6 +50,8 @@ class RealtimeTradeAPI:
         if result is None, message contains error information
         """
 
+        # 
+        order_delta_time = datetime.datetime.now() + datetime.timedelta( minutes=1)
         order_payload = { 
             "order_book_id": order_book_id,
             "order_side": order_side,
@@ -61,7 +66,7 @@ class RealtimeTradeAPI:
                 'algo.append_tick': 99,
                 'algo.cancel_cycle': 60,
                 'offer_start_time': '09:30:00',
-                'offer_stop_time': '15:00:00' # TODO: 
+                'offer_stop_time': order_delta_time.strftime("%H:%M:%S") # '15:00:00'
             }),
         }
 
