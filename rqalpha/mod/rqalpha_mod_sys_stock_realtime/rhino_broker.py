@@ -30,7 +30,7 @@ class RealtimeBroker(AbstractBroker):
         self._trade_api =  RealtimeTradeAPI()
         # TODO: config the username
         resultData, returnMsg = self._trade_api.login( "diryox", "8080")
-        print ( resultData, returnMsg )
+        print ( "Login:", resultData, returnMsg )
 
 
         # 后台线程，查询成交
@@ -170,8 +170,9 @@ class RealtimeBroker(AbstractBroker):
         positions = Positions(StockPosition)
         resultData, returnMsg = self._trade_api.get_positions ()
 
-        if returnMsg['error'] != 0:
-            return None
+        if returnMsg['error'] != 0 or resultData is None:
+            return positions
+
         for poData in resultData:
             security_id, exchange_id = poData['order_book_id'].split(".")
             # convert to rqalpha style
@@ -196,12 +197,14 @@ class RealtimeBroker(AbstractBroker):
     def _get_broker_orders (self, specifiedOrderId):
 
         resultData, returnMsg = self._trade_api.get_orders()
+        if resultData is None:
+            return
 
         for orderId, orderData in resultData.items():
 
             order = self._get_order_by_id ( orderId, )
             if order is None:
-                print ("New Order: ",  orderId)
+                print ("New Order: ",  orderId, orderData["order_qty"], orderData["knock_qty"])
                 order = self._create_order_by_data( orderId, orderData)
                 order.set_secondary_order_id(orderId)
                 self._open_orders[orderId] = order
@@ -213,9 +216,6 @@ class RealtimeBroker(AbstractBroker):
 
                 knock_qty = int(orderData['knock_qty'])
                 knock_avgPx = orderData['knock_avgPx']
-
-                if orderId == "000007":
-                    print (orderData)
 
                 filled_qty = order.filled_quantity # order.quantity - order.unfilled_quantity
                 filled_avgPx = order.avg_price
@@ -309,5 +309,5 @@ class RealtimeBroker(AbstractBroker):
             if self._portfolio is None:
                 continue
             sleep(1.0)
-            print ("BROKER: Sync Orders")
+            # print ("BROKER: Sync Orders")
             self._get_broker_orders ( None )

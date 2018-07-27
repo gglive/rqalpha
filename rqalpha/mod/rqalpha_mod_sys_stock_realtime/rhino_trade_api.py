@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import datetime
 import time
+import uuid
 import json
 from .jsonrpc.client import Client
 
@@ -18,7 +19,7 @@ class RealtimeTradeAPI:
         self.jsonrpc.close()
    
     def login ( self, username, password ):
-        self.jsonrpc.link ( _Identity="rqalpha-mod", _Endpoint="tcp://127.0.0.1:58086")#
+        self.jsonrpc.link ( _Identity="rqalpha-mod-"+uuid.uuid4().__str__(), _Endpoint="tcp://192.168.0.49:58086")#
         self.jsonrpc.start ()#
 
         self._username = username
