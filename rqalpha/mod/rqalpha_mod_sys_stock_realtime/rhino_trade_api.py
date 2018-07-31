@@ -33,7 +33,7 @@ class RealtimeTradeAPI:
             rpc_params = { "username": self._username, "password": self._password }
             # TODO:
             returnData, returnMsg = self.jsonrpc.call("rqalpha.login", rpc_params)
-            return ( True, self._username + " has login")
+            return ( returnMsg["code"] == 0, self._username + " has login")
         else:
             return (False, "-1,empty username or password")
 

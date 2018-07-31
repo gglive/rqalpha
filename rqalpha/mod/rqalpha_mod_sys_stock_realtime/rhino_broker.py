@@ -170,7 +170,7 @@ class RealtimeBroker(AbstractBroker):
         positions = Positions(StockPosition)
         resultData, returnMsg = self._trade_api.get_positions ()
 
-        if returnMsg['error'] != 0 or resultData is None:
+        if returnMsg['code'] != 0 or resultData is None:
             return positions
 
         for poData in resultData:
