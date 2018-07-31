@@ -29,7 +29,7 @@ class RealtimeBroker(AbstractBroker):
         # trade api创建及参数
         self._trade_api =  RealtimeTradeAPI()
         # TODO: config the username
-        resultData, returnMsg = self._trade_api.login( "diryox", "8080")
+        resultData, returnMsg = self._trade_api.login( self._mod_config.trade_srv_endpoint, self._mod_config.trade_strategy, "keep-secret")
         print ( "Login:", resultData, returnMsg )
 
 

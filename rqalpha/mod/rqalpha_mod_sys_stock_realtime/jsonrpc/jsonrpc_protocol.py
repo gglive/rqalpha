@@ -86,7 +86,7 @@ class _Response_jsonrpc_v20:
             # NB: JAQS, this field maybe exist on success, with empty payload,
             # that is NOT consist with JSON-RPC specification.
             self.data['error'] = { 
-                "error"     : errorData[0], 
+                "code"     : errorData[0], 
                 'message'   : errorData[1] 
             }
 
