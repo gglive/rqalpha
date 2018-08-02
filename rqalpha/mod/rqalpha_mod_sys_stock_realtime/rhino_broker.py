@@ -192,6 +192,8 @@ class RealtimeBroker(AbstractBroker):
                 "frozen": 0,
                 "transaction_cost":0
             })
+            poItem.prev_qty = poData['prev_qty']
+            poItem.prev_avgPx = poData['prev_avgPx']
         return positions
 
     def _get_broker_orders (self, specifiedOrderId):
@@ -201,14 +203,15 @@ class RealtimeBroker(AbstractBroker):
             return
 
         for orderId, orderData in resultData.items():
-
             order = self._get_order_by_id ( orderId, )
             if order is None:
-                print ("New Order: ",  orderId, orderData["order_qty"], orderData["knock_qty"])
+                print ("New Order: ",  orderId, orderData["order_qty"], orderData["knock_qty"], orderData["knock_avgPx"])
                 order = self._create_order_by_data( orderId, orderData)
                 order.set_secondary_order_id(orderId)
                 self._open_orders[orderId] = order
-            
+                # HACK: force update once ...
+                orderData["order_status"] = "EXECUTING"
+
             account = self._get_account (order.order_book_id)
 
             order_status = orderData["order_status"]
@@ -242,11 +245,11 @@ class RealtimeBroker(AbstractBroker):
                 order.fill( trade)
                 self._env.event_bus.publish_event(Event(EVENT.TRADE, account=account, trade=trade, order=order))
 
-            elif order_status == "CANCELLED":  # 6=已撤单
+            elif order_status == "CANCELLED" and order.status != ORDER_STATUS.CANCELLED:  # 6=已撤单
                 order.mark_cancelled(_(u"{order_id} order has been cancelled by user.").format(order_id=order.order_id))
                 self._env.event_bus.publish_event(Event(EVENT.ORDER_CANCELLATION_PASS, account=account, order=order))
 
-            elif order_status == "INVALID":  # 4=已失效  	7=已删除
+            elif order_status == "INVALID" and order.status != ORDER_STATUS.REJECTED:  # 4=已失= "INVALID":  # 4=已失效  	7=已删除
                 reason = _(u"Order Cancelled:  code = {0} status = {1} ").format(order.order_book_id, order_status)
                 order.mark_rejected( reason)
                 self._env.event_bus.publish_event(Event(EVENT.ORDER_CREATION_REJECT, account=account, order=order))

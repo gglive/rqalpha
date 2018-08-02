@@ -40,6 +40,10 @@ class StockPosition(BasePosition):
         self._frozen = 0            # 冻结量
         self._transaction_cost = 0  # 交易费用
 
+        self.prev_qty = 0
+        self.prev_avgPx = 0.0
+        self._today_cash_flow = 0.0 
+
     def __repr__(self):
         return 'StockPosition({})'.format(self.__dict__)
 
@@ -67,12 +71,19 @@ class StockPosition(BasePosition):
             self._avg_price = (self._avg_price * self._quantity + trade.last_quantity * trade.last_price) / (
                 self._quantity + trade.last_quantity)
             self._quantity += trade.last_quantity
+            self._today_cash_flow -= trade.last_quantity * trade.last_price 
             if self.stock_t1 and self._order_book_id not in {'510900.XSHG', '513030.XSHG', '513100.XSHG', '513500.XSHG'}:
                 # 除了上述 T+0 基金，其他都是 T+1
                 self._non_closable += trade.last_quantity
         else:
+            self._avg_price = (self._avg_price * self._quantity - trade.last_quantity * trade.last_price) / (
+                self._quantity - trade.last_quantity)
             self._quantity -= trade.last_quantity
+            self._today_cash_flow += trade.last_quantity * trade.last_price
             self._frozen -= trade.last_quantity
+
+        print("TRADE:", trade.last_quantity, trade.last_price)
+        print("Position:", self._quantity, self._avg_price, self._today_cash_flow)
         
     def apply_settlement(self):
         self._non_closable = 0
@@ -125,7 +136,10 @@ class StockPosition(BasePosition):
 
     @property
     def pnl(self):
-        return self._quantity * (self.last_price - self._avg_price)
+        if self._quantity > 0:
+            return self._quantity * (self.last_price - self._avg_price)
+        else:
+            return self._today_cash_flow - (self.prev_avgPx * self.prev_qty)
 
     @property
     def sellable(self):

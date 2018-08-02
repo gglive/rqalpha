@@ -52,7 +52,7 @@ class RealtimeTradeAPI:
         """
 
         # 
-        order_delta_time = datetime.datetime.now() + datetime.timedelta( minutes=1)
+        # order_delta_time = datetime.datetime.now() + datetime.timedelta( minutes=1)
         order_payload = { 
             "order_book_id": order_book_id,
             "order_side": order_side,
@@ -67,7 +67,7 @@ class RealtimeTradeAPI:
                 'algo.append_tick': 99,
                 'algo.cancel_cycle': 60,
                 'offer_start_time': '09:30:00',
-                'offer_stop_time': order_delta_time.strftime("%H:%M:%S") # "COMMON_ORDER" # 
+                'offer_stop_time': "COMMON_ORDER" # order_delta_time.strftime("%H:%M:%S") # 
             }),
         }
 
