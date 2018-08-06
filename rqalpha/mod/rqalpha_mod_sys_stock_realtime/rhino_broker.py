@@ -182,9 +182,6 @@ class RealtimeBroker(AbstractBroker):
                 exchange_id = "XSHE"
 
             order_book_id = security_id + "." + exchange_id
-            if order_book_id == "600068.XSHG":
-                print ('===============')
-                print (poData)
 
             poItem = positions.get_or_create( order_book_id)
             poItem.set_state ({
