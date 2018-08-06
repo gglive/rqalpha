@@ -151,8 +151,8 @@ class RealtimeBroker(AbstractBroker):
         config = self._env.config
 
         accounts = {}
-        total_cash = 100000 # config.base.stock_starting_cash
-        
+        print (self._env.config.base.accounts)
+        total_cash = 0
         StockAccount = self._env.get_account_model(DEFAULT_ACCOUNT_TYPE.STOCK.name)
         positions = self._get_broker_positions()
         accounts[DEFAULT_ACCOUNT_TYPE.STOCK.name] = StockAccount(total_cash, positions)
