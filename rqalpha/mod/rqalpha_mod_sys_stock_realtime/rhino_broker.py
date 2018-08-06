@@ -182,12 +182,15 @@ class RealtimeBroker(AbstractBroker):
                 exchange_id = "XSHE"
 
             order_book_id = security_id + "." + exchange_id
+            if order_book_id == "600068.XSHG":
+                print ('===============')
+                print (poData)
 
             poItem = positions.get_or_create( order_book_id)
             poItem.set_state ({
                 "order_book_id": order_book_id,
-                "quantity": poData["position_qty"],
-                "avg_price": poData["position_avgPx"],
+                "quantity": poData['prev_qty'], # poData["position_qty"],
+                "avg_price": poData['prev_avgPx'], # poData["position_avgPx"],
                 "non_closable": 0,
                 "frozen": 0,
                 "transaction_cost":0
