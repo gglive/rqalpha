@@ -27,9 +27,9 @@ class RealtimeBroker(AbstractBroker):
         self._env.event_bus.add_listener(EVENT.PRE_AFTER_TRADING, self._after_trading)
 
         # trade api创建及参数
-        self._trade_api =  RealtimeTradeAPI()
+        self._trade_api =  RealtimeTradeAPI(self._mod_config.trade_srv_endpoint,)
         # TODO: config the username
-        resultData, returnMsg = self._trade_api.login( self._mod_config.trade_srv_endpoint, self._mod_config.trade_strategy, "keep-secret")
+        resultData, returnMsg = self._trade_api.login(  self._mod_config.trade_strategy, "keep-secret")
         print ( "Login:", resultData, returnMsg )
 
 
@@ -311,6 +311,6 @@ class RealtimeBroker(AbstractBroker):
         while True:
             if self._portfolio is None:
                 continue
-            sleep(1.0)
+            sleep(1.2)
             # print ("BROKER: Sync Orders")
             self._get_broker_orders ( None )

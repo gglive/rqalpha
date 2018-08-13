@@ -17,8 +17,7 @@ from .jsonrpc_protocol import _Request_jsonrpc_v20, _Respond_jsonrpc_v20
 
 class Client:
     
-    def __init__(self, ):
-        
+    def __init__(self, _Endpoint, _Identity):
         # new context of client session
         self.context        = None # zmq.Context.instance()
         
@@ -30,12 +29,10 @@ class Client:
         # listen to zmq messages in shadow
         self.shadow_socket  = None 
 
-        
         # identity of current endpoint, used as routing id for server side
-        self.identity       =  None # 'rhino/' + id
-        
+        self.identity       =  _Identity
         # address of the physical endpoint 
-        self.endpoint       = ""
+        self.endpoint       = _Endpoint
 
         # max time allowed to send, recv of 0MQ
         self.timeout        = 3 # timeout
@@ -59,7 +56,7 @@ class Client:
         # Waitable-Queues one for each thread
         self.jsonrpc_waitables      = {} # threading.local ()
         # waits for rpc call return
-        self.jsonrpc_waitMapping    = {}
+        self.jsonrpc_waitees    = {}
 
         # jsonrpc notifications &N connection events
         self.jsonrpc_events = queue.Queue ()
@@ -67,19 +64,16 @@ class Client:
         self.jsonrpc_callbacks = {} 
 
 
-    def link ( self, _Identity, _Endpoint):
+    def start (self, ):
         self.context        = zmq.Context.instance()
-        self.identity       =  'rqalpha/' + _Identity
-        self.endpoint       = _Endpoint
-        self.shadow_socket  = self.context.socket ( zmq.DEALER)
 
         self.shadow_socket = self.context.socket(zmq.DEALER)
         self.shadow_socket.setsockopt_string(zmq.IDENTITY, self.identity)
-        self.shadow_socket.setsockopt(zmq.SNDTIMEO, self.timeout*1000)
-        self.shadow_socket.setsockopt(zmq.RCVTIMEO, self.timeout*1000)
+        #self.shadow_socket.setsockopt(zmq.SNDTIMEO, self.timeout*1000)
+        #self.shadow_socket.setsockopt(zmq.RCVTIMEO, self.timeout*1000)
         self.shadow_socket.setsockopt(zmq.LINGER, 0)
         self.shadow_socket.setsockopt(zmq.PROBE_ROUTER, True)
-        # self.shadow_socket.setsockopt(zmq.MAX_RECONNECT_IVL, 1000)
+        self.shadow_socket.setsockopt(zmq.RECONNECT_IVL_MAX, 1000)
         
         # connect to the endpoint
         self.shadow_socket.connect (self.endpoint)
@@ -90,8 +84,6 @@ class Client:
         self.push_socket = self.context.socket(zmq.PUSH)
         self.push_socket.connect("inproc://rqalpha")
 
-
-    def start (self, ):
         self.active = True
         
         self._zmq_thread   = threading.Thread (target=self._zmq_loop, daemon=True)
@@ -110,13 +102,13 @@ class Client:
         clientRequest = _Request_jsonrpc_v20( self.identity, {"method": method, "params": params,})
         call_id = clientRequest.identity
         
-        thread_id = threading.current_thread().ident
+        tid = threading.current_thread().ident
         # no waitable queue on current thread, create a new one.
         with self._wait_lock:
-            if thread_id not in self.jsonrpc_waitables:
-                self.jsonrpc_waitables[ thread_id ]= queue.Queue()
-        waitable = self.jsonrpc_waitables[thread_id]
-        self.jsonrpc_waitMapping[call_id] = waitable
+            if tid not in self.jsonrpc_waitables:
+                self.jsonrpc_waitables[ tid ]= queue.Queue()
+        waitable = self.jsonrpc_waitables[tid]
+        self.jsonrpc_waitees[call_id] = waitable
         
         self.send ( clientRequest)
         try:
@@ -127,7 +119,7 @@ class Client:
             returnData = None
         
         with self._wait_lock:
-            del self.jsonrpc_waitMapping [call_id]
+            del self.jsonrpc_waitees [call_id]
 
         if returnData:
             return ( returnData.result, returnData.error )
@@ -141,7 +133,6 @@ class Client:
                 self.push_socket.send ( jsonData)
         except zmq.error.ZMQError as zmqerror:
             print ("0MQ: ", zmqerror)
-
     
     def heartbeat (self, ):
         clientRequest = _Request_jsonrpc_v20 ( self.identity, {
@@ -173,18 +164,19 @@ class Client:
                 if ss.get ( self.pull_socket) == zmq.POLLIN:
                     msgData = self.pull_socket.recv()
                     # if cmd.startswith (b"#"):
+                    # print ("SEND:", msgData)
                     self.shadow_socket.send ( msgData )
 
                 if ss.get(self.shadow_socket) == zmq.POLLIN:
                     data = self.shadow_socket.recv()
                     try:
                         msgData = msgpack.loads (data, encoding='utf-8')
+                        # print ("RECV: ", msgData)
                         if not msgData:
                             print("RPC: Can't parse message data")
 
                         if msgData.get( 'method') == 'x.heartbeat':
                             heartbeat_pong = time.time()
-                            # print ( " == RPC: HEARTBEAT ==")
                             continue
 
                         # print (msgData)
@@ -219,7 +211,7 @@ class Client:
             returnData = _Respond_jsonrpc_v20 ( self.identity, msgData)
             _Identity = returnData.identity
             with self._wait_lock:
-                waitable = self.jsonrpc_waitMapping.get (_Identity )
+                waitable = self.jsonrpc_waitees.get (_Identity )
                 waitable.put ( returnData )
         else: # notification 
             rpc_callback = self.jsonrpc_callbacks.get( msgData['method'])

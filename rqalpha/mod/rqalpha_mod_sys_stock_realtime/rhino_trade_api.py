@@ -8,9 +8,9 @@ from .jsonrpc.client import Client
 
 class RealtimeTradeAPI:
 
-    def __init__(self,):
+    def __init__(self, endpoint):
 
-        self.jsonrpc = Client()
+        self.jsonrpc = Client( _Endpoint=endpoint, _Identity="rqalpha-mod-realtime-"+uuid.uuid4().__str__(), )
 
         self._username    = ""
         self._password    = ""
@@ -18,8 +18,7 @@ class RealtimeTradeAPI:
     def close (self):
         self.jsonrpc.close()
    
-    def login ( self, endpoint, username, password ):
-        self.jsonrpc.link ( _Identity="rqalpha-mod-realtime-"+uuid.uuid4().__str__(), _Endpoint=endpoint)
+    def login ( self, username, password ):
         self.jsonrpc.start ()#
 
         self._username = username
